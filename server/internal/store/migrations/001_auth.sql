@@ -15,7 +15,7 @@ create table if not exists email_verifications (
   expires_at timestamp not null,
   attempt_count int not null default 0,
   consumed_at timestamp null,
-  request_ip inet not null,
+  request_ip text not null,
   created_at timestamp not null default now()
 );
 

@@ -77,3 +77,109 @@ button:disabled {
 .user p {
   margin: 6px 0;
 }
+
+/* Updated Styles */
+.header .user-info {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.small-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #f0f0f5;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+  display: block;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+th {
+  color: #666;
+  font-weight: 500;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #eee;
+  color: #666;
+}
+
+.status-badge.running {
+  background: #e6f6ff;
+  color: #0070f3;
+}
+
+.status-badge.success {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.status-badge.failed {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.progress-bar {
+  background: #eee;
+  height: 6px;
+  border-radius: 3px;
+  width: 100px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: #1f6feb;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #666;
+}
+
+.download-link {
+  color: #1f6feb;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.download-link:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  text-align: center;
+  color: #999;
+  padding: 40px;
+}

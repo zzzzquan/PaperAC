@@ -1,9 +1,26 @@
-# 环境变量
+# Environment Variables
 .env
 
-# macOD
+# MacOS
 .DS_Store
 
-helloagents
-报告样式调研
+# Go
+server/api
+server/go.sum
+
+# Node/Frontend
+node_modules/
+web/node_modules/
+web/dist/
+web/.env.local
+npm-debug.log*
+
+# Editor directories
+.idea/
+.vscode/
+
+# Project specifics
+DEV_LOG.md
 PLAN.md
+server/go.work
+server/go.work.sum

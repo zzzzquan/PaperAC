@@ -25,13 +25,37 @@ export async function logout() {
   });
 }
 
+export async function createTask(file, x) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("x", x);
+
+  // Note: Do not set Content-Type header when using FormData; 
+  // fetch/browser will set it to multipart/form-data with boundary automatically.
+  return request("/api/tasks", {
+    method: "POST",
+    headers: {
+      "X-CSRF-Token": getCSRFCookie()
+      // "Content-Type" is intentionally omitted
+    },
+    body: formData
+  });
+}
+
+export async function fetchTasks(limit = 20) {
+  return request(`/api/tasks?limit=${limit}`, { method: "GET" });
+}
+
 async function request(path, options) {
+  const headers = { ...options.headers };
+  // Only set JSON content type if not using FormData (which shouldn't have content-type set manually)
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(path, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
+    headers: headers,
     ...options
   });
 

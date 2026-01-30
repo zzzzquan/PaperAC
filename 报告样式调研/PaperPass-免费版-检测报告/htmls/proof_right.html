@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperPass 权威中文论文抄袭检测系统</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="proof-wrap">
+        <div class="tab-header">
+            <ul class="tabs tab-header-title">
+                <li data-type="All" class="active"><span class="rp-All"></span><strong class="label-name">全部类别</strong></li>
+                <li data-type="ignore">已忽略（<i class="ignore_num">0</i>）</li>
+            </ul>
+            <ul class="tabs tab-header-items clearfix"></ul>
+        </div>
+        <div class="tab-content">
+            <div class="tab-content-item">
+                <div class="item-title">
+                    <h4>全部类别</h4>
+                    <span class="rp-All"></span>
+                </div>
+                <div class="item-column-wrap">
+  
+                </div>
+                <input type="text" value="HiddenInput" id="copyVal" style="opacity: 0;position: absolute;top: 0;left: 0;z-index: -10;">
+                <div class="AddHeight"></div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script src="js/jquery.min.js"></script>
+<script src="js/lib.js"></script>
+<script src="js/detaildata.js"></script>
+<script>
+    Report.report_id = 'vmk36925a3411d1fb';
+    var is_organization = false;</script>
+<script src="js/right.js"></script>
+<script>
+    (function (System, $){
+        'use strict';
+        System.operateState.saveId(Report.report_id);
+
+        $(document).on("click", function() {
+            parent.parent.postMessage("documentClickEvent", "*");
+        });
+    })(Report, jQuery)
+</script>
+</html>
