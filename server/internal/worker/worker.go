@@ -14,8 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"aigc-detector/server/internal/algo"
 	"aigc-detector/server/internal/config"
 	"aigc-detector/server/internal/parser"
+	"aigc-detector/server/internal/report"
+	"aigc-detector/server/internal/splitter"
 	"aigc-detector/server/internal/store"
 
 	"github.com/google/uuid"
@@ -28,10 +31,11 @@ type Worker struct {
 }
 
 type ResultPayload struct {
-	TaskID  string  `json:"task_id"`
-	Status  string  `json:"status"`
-	X       float64 `json:"x"`
-	Message string  `json:"message"`
+	TaskID  string                `json:"task_id"`
+	Status  string                `json:"status"`
+	X       float64               `json:"x"`
+	Message string                `json:"message"`
+	Results []algo.SentenceResult `json:"results,omitempty"`
 }
 
 func (w *Worker) Start(ctx context.Context) {
@@ -113,16 +117,22 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 		return err
 	}
 
+	var sentences []string
+	var results []algo.SentenceResult
+
 	// 提取PDF文本
 	text, err := parser.ExtractText(task.UploadPath)
 	if err != nil {
 		log.Printf("PDF解析失败: %v", err)
 	} else {
-		preview := text
-		if len(preview) > 500 {
-			preview = preview[:500] + "..."
-		}
-		log.Printf("PDF解析成功，预览: %s", preview)
+		log.Printf("PDF解析成功，长度: %d", len(text))
+		// 分句
+		sentences = splitter.Split(text)
+		log.Printf("分句完成，共 %d 句", len(sentences))
+
+		// 算法处理
+		processor := algo.NewProcessor()
+		results = processor.Process(sentences, task.X)
 	}
 
 	// 模拟耗时，以便前端能看到进度条
@@ -142,17 +152,25 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 		return err
 	}
 
-	resultFileName := filepath.Join(w.Config.ResultDir, task.ID.String()+".pdf")
-	if err := copyFile(task.UploadPath, resultFileName); err != nil {
+	// 生成 HTML 报告
+	htmlData, err := report.GenerateHTML(task.OriginalFileName, results, task.X)
+	if err != nil {
 		return err
 	}
 
+	resultFileName := filepath.Join(w.Config.ResultDir, task.ID.String()+".html")
+	if err := os.WriteFile(resultFileName, htmlData, 0o644); err != nil {
+		return err
+	}
+
+	// 保存原始 JSON 数据 (可选，保留方便调试)
 	resultJSON := filepath.Join(w.Config.ResultDir, task.ID.String()+"_result.json")
 	payload := ResultPayload{
 		TaskID:  task.ID.String(),
 		Status:  string(store.TaskSuccess),
 		X:       task.X,
-		Message: "stub result generated",
+		Message: "Analysis completed successfully",
+		Results: results,
 	}
 	if err := writeJSON(resultJSON, payload); err != nil {
 		return err

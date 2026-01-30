@@ -8,6 +8,10 @@ trap 'kill $(jobs -p)' EXIT
 
 echo "🚀 正在启动 PaperAC 开发环境..."
 
+# 确保进入脚本所在目录
+cd "$(dirname "$0")" || exit 1
+
+
 # 1. 启动后端
 echo "📦 [Backend] 启动中..."
 cd server
