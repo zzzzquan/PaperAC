@@ -1,17 +1,14 @@
 package worker
 
-// 任务worker：消费队列并执行异步处理。
+// 任务worker：无状态异步处理（Serverless Goroutine模式）。
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sync"
 	"time"
 
 	"aigc-detector/server/internal/algo"
@@ -26,7 +23,6 @@ import (
 
 type Worker struct {
 	Store  *store.Store
-	Redis  *store.RedisStore
 	Config config.Config
 }
 
@@ -38,53 +34,28 @@ type ResultPayload struct {
 	Results []algo.SentenceResult `json:"results,omitempty"`
 }
 
-func (w *Worker) Start(ctx context.Context) {
-	concurrency := w.Config.WorkerConcurrency
-	if concurrency <= 0 {
-		concurrency = runtime.NumCPU()
-	}
+// ProcessTask 异步处理任务 (Goroutine compatible)
+func (w *Worker) ProcessTask(taskID string) {
+	// 创建一个独立的上下文，避免请求取消影响任务
+	ctx := context.Background()
 
-	var wg sync.WaitGroup
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			w.loop(ctx)
-		}()
-	}
+	// 设置最大执行时间
+	ctx, cancel := context.WithTimeout(ctx, w.Config.TaskTimeout)
+	defer cancel()
 
-	<-ctx.Done()
-	wg.Wait()
+	w.process(ctx, taskID)
 }
 
-func (w *Worker) loop(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		taskID, err := w.Redis.PopTask(ctx, w.Config.TaskQueueName, 5*time.Second)
-		if err != nil {
-			continue
-		}
-		if taskID == "" {
-			continue
-		}
-
-		w.processTask(ctx, taskID)
-	}
-}
-
-func (w *Worker) processTask(ctx context.Context, taskID string) {
+func (w *Worker) process(ctx context.Context, taskID string) {
 	id, err := uuid.Parse(taskID)
 	if err != nil {
+		log.Printf("[Worker] Invalid TaskID: %s", taskID)
 		return
 	}
 
 	task, err := w.Store.GetTaskByID(ctx, id)
 	if err != nil || task == nil {
+		log.Printf("[Worker] Task not found: %s", taskID)
 		return
 	}
 	if task.Status == store.TaskCancelled {
@@ -93,26 +64,18 @@ func (w *Worker) processTask(ctx context.Context, taskID string) {
 
 	_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskRunning, 10, "", "", nil)
 
-	taskCtx, cancel := context.WithTimeout(ctx, w.Config.TaskTimeout)
-	defer cancel()
+	// 执行核心逻辑
+	err = w.execute(ctx, task)
 
-	done := make(chan error, 1)
-	go func() {
-		done <- w.executeStub(taskCtx, task)
-	}()
-
-	select {
-	case <-taskCtx.Done():
-		_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskFailed, 0, "", "任务超时", nowPtr(time.Now().UTC()))
-	case err := <-done:
-		if err != nil {
-			_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskFailed, 0, "", err.Error(), nowPtr(time.Now().UTC()))
-			return
-		}
+	if err != nil {
+		log.Printf("[Worker] Task failed: %s, error: %v", taskID, err)
+		_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskFailed, 0, "", err.Error(), nowPtr(time.Now().UTC()))
+	} else {
+		log.Printf("[Worker] Task success: %s", taskID)
 	}
 }
 
-func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
+func (w *Worker) execute(ctx context.Context, task *store.Task) error {
 	if err := w.Store.UpdateTaskProgress(ctx, task.ID, 30); err != nil {
 		return err
 	}
@@ -135,7 +98,7 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 		results = processor.Process(sentences, task.X)
 	}
 
-	// 模拟耗时，以便前端能看到进度条
+	// 模拟耗时
 	timer := time.NewTimer(2 * time.Second)
 	defer timer.Stop()
 	select {
@@ -163,7 +126,7 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 		return err
 	}
 
-	// 保存原始 JSON 数据 (可选，保留方便调试)
+	// 保存原始 JSON 数据
 	resultJSON := filepath.Join(w.Config.ResultDir, task.ID.String()+"_result.json")
 	payload := ResultPayload{
 		TaskID:  task.ID.String(),
@@ -172,9 +135,7 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 		Message: "Analysis completed successfully",
 		Results: results,
 	}
-	if err := writeJSON(resultJSON, payload); err != nil {
-		return err
-	}
+	_ = writeJSON(resultJSON, payload)
 
 	finishedAt := time.Now().UTC()
 	if err := w.Store.UpdateTaskStatus(ctx, task.ID, store.TaskSuccess, 100, resultFileName, "", &finishedAt); err != nil {
@@ -182,23 +143,6 @@ func (w *Worker) executeStub(ctx context.Context, task *store.Task) error {
 	}
 
 	return nil
-}
-
-func copyFile(source string, dest string) error {
-	src, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, src)
-	return err
 }
 
 func writeJSON(path string, payload ResultPayload) error {

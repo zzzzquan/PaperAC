@@ -25,10 +25,8 @@ WORKDIR /app
 # 安装必要的运行时依赖 (证书、时区)
 RUN apk --no-cache add ca-certificates tzdata
 
-# 从构建层复制二进制文件
+# 复制二进制文件
 COPY --from=builder /app/main .
-# 复制 Assets (如字体)
-COPY --from=builder /app/assets ./assets
 # 复制可能的 .env (生产环境建议通过 docker-compose environment 注入，这里可选)
 
 # 暴露端口
