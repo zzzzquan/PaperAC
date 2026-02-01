@@ -81,9 +81,10 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
+
 	task := &store.Task{
-		ID:               taskID,
-		UserID:           userID,
+		ID:               taskID.String(),
+		UserID:           userID.String(),
 		Status:           store.TaskPending,
 		Progress:         0,
 		X:                xValue,
@@ -127,7 +128,7 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 		return
 	}
 
-	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID, userID)
+	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID.String(), userID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务查询失败", nil)
 		return
@@ -153,7 +154,7 @@ func (h *TaskHandler) ListTasks(c *gin.Context) {
 	}
 
 	limit := parseLimit(c.Query("limit"))
-	tasks, err := h.Store.ListTasksByUser(c.Request.Context(), userID, limit)
+	tasks, err := h.Store.ListTasksByUser(c.Request.Context(), userID.String(), limit)
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务列表查询失败", nil)
 		return
@@ -187,7 +188,7 @@ func (h *TaskHandler) DownloadResult(c *gin.Context) {
 		return
 	}
 
-	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID, userID)
+	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID.String(), userID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务查询失败", nil)
 		return
@@ -221,7 +222,7 @@ func (h *TaskHandler) CancelTask(c *gin.Context) {
 		return
 	}
 
-	ok, err := h.Store.CancelTask(c.Request.Context(), taskID, userID)
+	ok, err := h.Store.CancelTask(c.Request.Context(), taskID.String(), userID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务取消失败", nil)
 		return
@@ -298,7 +299,7 @@ func saveMultipartFile(header *multipart.FileHeader, dest string) error {
 
 func taskToResponse(task *store.Task) gin.H {
 	return gin.H{
-		"task_id":       task.ID.String(),
+		"task_id":       task.ID,
 		"status":        task.Status,
 		"progress":      task.Progress,
 		"x":             task.X,

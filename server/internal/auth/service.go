@@ -102,7 +102,7 @@ func (s *Service) Verify(ctx context.Context, email string, code string) (string
 	// Generate JWT
 	now := time.Now()
 	claims := jwt.MapClaims{
-		"uid":   user.ID.String(),
+		"uid":   user.ID,
 		"email": user.Email,
 		"iat":   now.Unix(),
 		"exp":   now.Add(24 * time.Hour).Unix(),
@@ -121,7 +121,7 @@ func (s *Service) FindUser(ctx context.Context, userID string) (*store.User, err
 	if err != nil {
 		return nil, ErrInvalidParams
 	}
-	return s.store.FindUserByID(ctx, parsed)
+	return s.store.FindUserByID(ctx, parsed.String())
 }
 
 // Error definitions

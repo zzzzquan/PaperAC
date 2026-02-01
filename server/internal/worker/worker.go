@@ -47,13 +47,13 @@ func (w *Worker) ProcessTask(taskID string) {
 }
 
 func (w *Worker) process(ctx context.Context, taskID string) {
-	id, err := uuid.Parse(taskID)
-	if err != nil {
+	// Validate UUID format but keep string for store
+	if _, err := uuid.Parse(taskID); err != nil {
 		log.Printf("[Worker] Invalid TaskID: %s", taskID)
 		return
 	}
 
-	task, err := w.Store.GetTaskByID(ctx, id)
+	task, err := w.Store.GetTaskByID(ctx, taskID)
 	if err != nil || task == nil {
 		log.Printf("[Worker] Task not found: %s", taskID)
 		return
@@ -62,14 +62,14 @@ func (w *Worker) process(ctx context.Context, taskID string) {
 		return
 	}
 
-	_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskRunning, 10, "", "", nil)
+	_ = w.Store.UpdateTaskStatus(ctx, taskID, store.TaskRunning, 10, "", "", nil)
 
 	// 执行核心逻辑
 	err = w.execute(ctx, task)
 
 	if err != nil {
 		log.Printf("[Worker] Task failed: %s, error: %v", taskID, err)
-		_ = w.Store.UpdateTaskStatus(ctx, id, store.TaskFailed, 0, "", err.Error(), nowPtr(time.Now().UTC()))
+		_ = w.Store.UpdateTaskStatus(ctx, taskID, store.TaskFailed, 0, "", err.Error(), nowPtr(time.Now().UTC()))
 	} else {
 		log.Printf("[Worker] Task success: %s", taskID)
 	}
@@ -121,15 +121,15 @@ func (w *Worker) execute(ctx context.Context, task *store.Task) error {
 		return err
 	}
 
-	resultFileName := filepath.Join(w.Config.ResultDir, task.ID.String()+".html")
+	resultFileName := filepath.Join(w.Config.ResultDir, task.ID+".html")
 	if err := os.WriteFile(resultFileName, htmlData, 0o644); err != nil {
 		return err
 	}
 
 	// 保存原始 JSON 数据
-	resultJSON := filepath.Join(w.Config.ResultDir, task.ID.String()+"_result.json")
+	resultJSON := filepath.Join(w.Config.ResultDir, task.ID+"_result.json")
 	payload := ResultPayload{
-		TaskID:  task.ID.String(),
+		TaskID:  task.ID,
 		Status:  string(store.TaskSuccess),
 		X:       task.X,
 		Message: "Analysis completed successfully",

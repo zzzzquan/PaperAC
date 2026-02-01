@@ -142,9 +142,9 @@ func (s *Store) CreateUser(ctx context.Context, email string) (*User, error) {
 	return user, nil
 }
 
-func (s *Store) FindUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
+func (s *Store) FindUserByID(ctx context.Context, id string) (*User, error) {
 	var u User
-	err := s.DB.WithContext(ctx).Where("id = ?", id.String()).First(&u).Error
+	err := s.DB.WithContext(ctx).Where("id = ?", id).First(&u).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -164,9 +164,9 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) error {
 	return s.DB.WithContext(ctx).Create(task).Error
 }
 
-func (s *Store) GetTaskByID(ctx context.Context, id uuid.UUID) (*Task, error) {
+func (s *Store) GetTaskByID(ctx context.Context, id string) (*Task, error) {
 	var t Task
-	err := s.DB.WithContext(ctx).First(&t, "id = ?", id.String()).Error
+	err := s.DB.WithContext(ctx).First(&t, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -176,10 +176,10 @@ func (s *Store) GetTaskByID(ctx context.Context, id uuid.UUID) (*Task, error) {
 	return &t, nil
 }
 
-func (s *Store) GetTaskForUser(ctx context.Context, taskID, userID uuid.UUID) (*Task, error) {
+func (s *Store) GetTaskForUser(ctx context.Context, taskID, userID string) (*Task, error) {
 	var t Task
 	err := s.DB.WithContext(ctx).
-		Where("id = ? AND user_id = ?", taskID.String(), userID.String()).
+		Where("id = ? AND user_id = ?", taskID, userID).
 		First(&t).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -190,17 +190,17 @@ func (s *Store) GetTaskForUser(ctx context.Context, taskID, userID uuid.UUID) (*
 	return &t, nil
 }
 
-func (s *Store) ListTasksByUser(ctx context.Context, userID uuid.UUID, limit int) ([]Task, error) {
+func (s *Store) ListTasksByUser(ctx context.Context, userID string, limit int) ([]Task, error) {
 	var tasks []Task
 	err := s.DB.WithContext(ctx).
-		Where("user_id = ?", userID.String()).
+		Where("user_id = ?", userID).
 		Order("created_at desc").
 		Limit(limit).
 		Find(&tasks).Error
 	return tasks, err
 }
 
-func (s *Store) UpdateTaskStatus(ctx context.Context, taskID uuid.UUID, status TaskStatus, progress int, resultPath, errorMsg string, finishedAt *time.Time) error {
+func (s *Store) UpdateTaskStatus(ctx context.Context, taskID string, status TaskStatus, progress int, resultPath, errorMsg string, finishedAt *time.Time) error {
 	updates := map[string]interface{}{
 		"status":     status,
 		"progress":   progress,
@@ -217,21 +217,21 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID uuid.UUID, status T
 		updates["finished_at"] = finishedAt
 	}
 
-	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID.String()).Updates(updates).Error
+	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID).Updates(updates).Error
 }
 
-func (s *Store) UpdateTaskProgress(ctx context.Context, taskID uuid.UUID, progress int) error {
-	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID.String()).
+func (s *Store) UpdateTaskProgress(ctx context.Context, taskID string, progress int) error {
+	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID).
 		Updates(map[string]interface{}{
 			"progress":   progress,
 			"updated_at": time.Now().UTC(),
 		}).Error
 }
 
-func (s *Store) CancelTask(ctx context.Context, taskID, userID uuid.UUID) (bool, error) {
+func (s *Store) CancelTask(ctx context.Context, taskID, userID string) (bool, error) {
 	// Optimistic check: only pending tasks can be cancelled
 	result := s.DB.WithContext(ctx).Model(&Task{}).
-		Where("id = ? AND user_id = ? AND status = ?", taskID.String(), userID.String(), TaskPending).
+		Where("id = ? AND user_id = ? AND status = ?", taskID, userID, TaskPending).
 		Update("status", TaskCancelled)
 
 	if result.Error != nil {

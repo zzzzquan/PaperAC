@@ -61,7 +61,7 @@ func (h *Handler) Verify(c *gin.Context) {
 	// 也可以由服务端 Set-Cookie (httpOnly)，但这里返回 JSON 更灵活，适应 Serverless/Mobile
 	util.OK(c, gin.H{
 		"token":   token,
-		"user_id": user.ID.String(),
+		"user_id": user.ID,
 		"email":   user.Email,
 	})
 }
