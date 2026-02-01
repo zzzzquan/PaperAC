@@ -1,75 +1,110 @@
 package store
 
-// 数据库访问层：负责PostgreSQL连接与核心查询。
+// 数据库访问层：GORM + SQLite 实现。
 
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
 )
 
 type Store struct {
-	DB *pgxpool.Pool
+	DB *gorm.DB
 }
 
+// Models
 type User struct {
-	ID        uuid.UUID
-	Email     string
+	ID        string `gorm:"primaryKey"`
+	Email     string `gorm:"uniqueIndex"`
 	CreatedAt time.Time
 }
 
 type VerificationCode struct {
-	ID        int
-	Email     string
+	ID        uint   `gorm:"primaryKey"`
+	Email     string `gorm:"index"`
 	Code      string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
 
-func NewPostgres(dsn string) (*Store, error) {
-	if dsn == "" {
-		return nil, errors.New("DATABASE_DSN 未配置")
+type Task struct {
+	ID               string `gorm:"primaryKey"`
+	UserID           string `gorm:"index"` // Foreign Key to User
+	Status           TaskStatus
+	Progress         int
+	X                float64
+	ErrorMessage     string
+	OriginalFileName string
+	UploadPath       string
+	ResultPath       string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	FinishedAt       *time.Time
+}
+
+type TaskStatus string
+
+const (
+	TaskPending   TaskStatus = "pending"
+	TaskRunning   TaskStatus = "running"
+	TaskSuccess   TaskStatus = "success"
+	TaskFailed    TaskStatus = "failed"
+	TaskCancelled TaskStatus = "cancelled"
+)
+
+func NewSqlite(dbPath string) (*Store, error) {
+	// Ensure db directory exists
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		return nil, err
 	}
-	pool, err := pgxpool.New(context.Background(), dsn)
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
-	return &Store{DB: pool}, nil
+
+	// Auto Migrate
+	if err := db.AutoMigrate(&User{}, &VerificationCode{}, &Task{}); err != nil {
+		return nil, err
+	}
+
+	return &Store{DB: db}, nil
 }
 
 func (s *Store) Close() {
-	if s.DB != nil {
-		s.DB.Close()
+	// GORM sql.DB generic close
+	sqlDB, err := s.DB.DB()
+	if err == nil {
+		sqlDB.Close()
 	}
 }
 
-// SaveVerificationCode 保存验证码
+// --- Verification Code ---
+
 func (s *Store) SaveVerificationCode(ctx context.Context, email, code string, expiresAt time.Time) error {
-	_, err := s.DB.Exec(ctx, `
-		INSERT INTO verification_codes (email, code, expires_at)
-		VALUES ($1, $2, $3)
-	`, email, code, expiresAt)
-	return err
+	v := VerificationCode{
+		Email:     email,
+		Code:      code,
+		ExpiresAt: expiresAt,
+	}
+	// Use WithContext? GORM DB is thread safe, but for timeout we can use WithContext(ctx)
+	return s.DB.WithContext(ctx).Create(&v).Error
 }
 
-// GetVerificationCode 获取有效的验证码
 func (s *Store) GetVerificationCode(ctx context.Context, email, code string) (*VerificationCode, error) {
-	row := s.DB.QueryRow(ctx, `
-		SELECT id, email, code, expires_at, created_at
-		FROM verification_codes
-		WHERE email = $1 AND code = $2 AND expires_at > NOW()
-		ORDER BY created_at DESC
-		LIMIT 1
-	`, email, code)
-
 	var v VerificationCode
-	err := row.Scan(&v.ID, &v.Email, &v.Code, &v.ExpiresAt, &v.CreatedAt)
+	err := s.DB.WithContext(ctx).
+		Where("email = ? AND code = ? AND expires_at > ?", email, code, time.Now()).
+		Order("created_at desc").
+		First(&v).Error
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -77,63 +112,130 @@ func (s *Store) GetVerificationCode(ctx context.Context, email, code string) (*V
 	return &v, nil
 }
 
-// DeleteVerificationCode 删除验证码（防重放）
-func (s *Store) DeleteVerificationCode(ctx context.Context, id int) error {
-	_, err := s.DB.Exec(ctx, `DELETE FROM verification_codes WHERE id = $1`, id)
-	return err
+func (s *Store) DeleteVerificationCode(ctx context.Context, id uint) error {
+	return s.DB.WithContext(ctx).Delete(&VerificationCode{}, id).Error
 }
 
-// FindUserByEmail 查找用户
-func (s *Store) FindUserByEmail(ctx context.Context, email string) (*User, error) {
-	row := s.DB.QueryRow(ctx, `
-		SELECT id, email, created_at
-		FROM users
-		WHERE email = $1
-	`, email)
+// --- User ---
 
+func (s *Store) FindUserByEmail(ctx context.Context, email string) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.CreatedAt)
+	err := s.DB.WithContext(ctx).Where("email = ?", email).First(&u).Error
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // Return nil, nil for not found (adapter behavior)
 		}
 		return nil, err
 	}
 	return &u, nil
 }
 
-// CreateUser 创建用户
 func (s *Store) CreateUser(ctx context.Context, email string) (*User, error) {
 	user := &User{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		Email:     email,
 		CreatedAt: time.Now().UTC(),
 	}
-	_, err := s.DB.Exec(ctx, `
-		INSERT INTO users (id, email, created_at)
-		VALUES ($1, $2, $3)
-	`, user.ID, user.Email, user.CreatedAt)
-	if err != nil {
+	if err := s.DB.WithContext(ctx).Create(user).Error; err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
-// FindUserByID 根据ID查找用户
 func (s *Store) FindUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
-	row := s.DB.QueryRow(ctx, `
-		SELECT id, email, created_at
-		FROM users
-		WHERE id = $1
-	`, id)
-
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.CreatedAt)
+	err := s.DB.WithContext(ctx).Where("id = ?", id.String()).First(&u).Error
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
 	return &u, nil
+}
+
+// --- Task ---
+
+func (s *Store) CreateTask(ctx context.Context, task *Task) error {
+	// Ensure UUID string format
+	if task.ID == "" {
+		task.ID = uuid.New().String()
+	}
+	return s.DB.WithContext(ctx).Create(task).Error
+}
+
+func (s *Store) GetTaskByID(ctx context.Context, id uuid.UUID) (*Task, error) {
+	var t Task
+	err := s.DB.WithContext(ctx).First(&t, "id = ?", id.String()).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (s *Store) GetTaskForUser(ctx context.Context, taskID, userID uuid.UUID) (*Task, error) {
+	var t Task
+	err := s.DB.WithContext(ctx).
+		Where("id = ? AND user_id = ?", taskID.String(), userID.String()).
+		First(&t).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (s *Store) ListTasksByUser(ctx context.Context, userID uuid.UUID, limit int) ([]Task, error) {
+	var tasks []Task
+	err := s.DB.WithContext(ctx).
+		Where("user_id = ?", userID.String()).
+		Order("created_at desc").
+		Limit(limit).
+		Find(&tasks).Error
+	return tasks, err
+}
+
+func (s *Store) UpdateTaskStatus(ctx context.Context, taskID uuid.UUID, status TaskStatus, progress int, resultPath, errorMsg string, finishedAt *time.Time) error {
+	updates := map[string]interface{}{
+		"status":     status,
+		"progress":   progress,
+		"updated_at": time.Now().UTC(),
+	}
+	// GORM ignores empty strings by default in struct updates, map is safer
+	if resultPath != "" {
+		updates["result_path"] = resultPath
+	}
+	if errorMsg != "" {
+		updates["error_message"] = errorMsg
+	}
+	if finishedAt != nil {
+		updates["finished_at"] = finishedAt
+	}
+
+	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID.String()).Updates(updates).Error
+}
+
+func (s *Store) UpdateTaskProgress(ctx context.Context, taskID uuid.UUID, progress int) error {
+	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID.String()).
+		Updates(map[string]interface{}{
+			"progress":   progress,
+			"updated_at": time.Now().UTC(),
+		}).Error
+}
+
+func (s *Store) CancelTask(ctx context.Context, taskID, userID uuid.UUID) (bool, error) {
+	// Optimistic check: only pending tasks can be cancelled
+	result := s.DB.WithContext(ctx).Model(&Task{}).
+		Where("id = ? AND user_id = ? AND status = ?", taskID.String(), userID.String(), TaskPending).
+		Update("status", TaskCancelled)
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }

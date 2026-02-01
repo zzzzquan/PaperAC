@@ -15,6 +15,7 @@ RUN go mod download
 
 # 复制源码并构建
 COPY . .
+# Use CGO_ENABLED=0 for pure Go build (compatible with glebarez/sqlite)
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/api/main.go
 
 # Run Stage
@@ -25,9 +26,14 @@ WORKDIR /app
 # 安装必要的运行时依赖 (证书、时区)
 RUN apk --no-cache add ca-certificates tzdata
 
+# 创建持久化数据目录
+RUN mkdir -p /data/tmp
+
 # 复制二进制文件
 COPY --from=builder /app/main .
-# 复制可能的 .env (生产环境建议通过 docker-compose environment 注入，这里可选)
+
+# 暴露数据卷
+VOLUME ["/data"]
 
 # 暴露端口
 EXPOSE 8080

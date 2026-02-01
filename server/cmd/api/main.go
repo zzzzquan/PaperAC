@@ -22,7 +22,8 @@ import (
 func main() {
 	cfg := config.Load()
 
-	db, err := store.NewPostgres(cfg.DatabaseDSN)
+	// Initialize SQLite Store
+	db, err := store.NewSqlite(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("初始化数据库失败: %v", err)
 	}

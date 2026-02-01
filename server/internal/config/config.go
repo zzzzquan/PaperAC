@@ -13,8 +13,10 @@ type Config struct {
 	BindAddress string
 	Environment string
 
-	DatabaseDSN string
-	JWTSecret   string
+	// Database
+	DBPath string // SQLite 文件路径
+
+	JWTSecret string
 
 	UploadDir         string
 	ResultDir         string
@@ -36,12 +38,12 @@ func Load() Config {
 	return Config{
 		BindAddress:         getEnv("BIND_ADDR", ":8080"),
 		Environment:         getEnv("APP_ENV", "development"),
-		DatabaseDSN:         getEnv("DATABASE_DSN", ""),
+		DBPath:              getEnv("DB_DSN", "/data/paperac.db"), // 默认 persistent volume 路径
 		JWTSecret:           getEnv("JWT_SECRET", "change-me-in-prod"),
-		UploadDir:           getEnv("UPLOAD_DIR", "/var/app/uploads"),
-		ResultDir:           getEnv("RESULT_DIR", "/var/app/results"),
+		UploadDir:           getEnv("UPLOAD_DIR", "/data/tmp/uploads"), // 需确保 /data/tmp 存在
+		ResultDir:           getEnv("RESULT_DIR", "/data/tmp/results"),
 		MaxUploadMB:         getEnvInt("MAX_UPLOAD_MB", 50),
-		TaskTimeout:         getEnvDuration("TASK_TIMEOUT", 5*time.Minute),
+		TaskTimeout:         getEnvDuration("TASK_TIMEOUT", 10*time.Minute),
 		WorkerConcurrency:   getEnvInt("WORKER_CONCURRENCY", 5),
 		DirectMailEndpoint:  getEnv("DIRECTMAIL_ENDPOINT", "dm.aliyuncs.com"),
 		DirectMailAccessKey: getEnv("ALIYUN_ACCESS_KEY", ""),

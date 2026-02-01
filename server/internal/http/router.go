@@ -4,6 +4,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"aigc-detector/server/internal/auth"
 	"aigc-detector/server/internal/config"
@@ -12,6 +13,7 @@ import (
 	"aigc-detector/server/internal/worker"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,10 +27,25 @@ func NewRouter(cfg config.Config, authService *auth.Service, worker *worker.Work
 	router.Use(gin.Recovery())
 	router.Use(cors.New(corsConfig(cfg)))
 
+	// Static File Serving (Monolithic)
+	// Serve "./dist" directory at root "/"
+	// Make sure this is AFTER CORS if needed, or BEFORE if public
+	router.Use(static.Serve("/", static.LocalFile("./dist", true)))
+
+	// SPA Fallback: If not API, serve index.html
+	router.NoRoute(func(c *gin.Context) {
+		if !strings.HasPrefix(c.Request.URL.Path, "/api") {
+			c.File("./dist/index.html")
+		} else {
+			c.JSON(http.StatusNotFound, gin.H{"error": "API route not found"})
+		}
+	})
+
 	handler := &auth.Handler{Service: authService, Config: cfg}
 	taskHandler := &handlers.TaskHandler{Store: authService.Store(), Worker: worker, Config: cfg}
 
 	api := router.Group("/api")
+
 	authGroup := api.Group("/auth")
 	authGroup.POST("/send-code", handler.SendCode)
 	authGroup.POST("/verify", handler.Verify)
@@ -55,6 +72,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, worker *worker.Work
 
 func corsConfig(cfg config.Config) cors.Config {
 	origins := cfg.CORSAllowOrigins
+	// In monolithic mode, same-origin is default, but for dev we keep localhost
 	if len(origins) == 0 {
 		origins = []string{"http://localhost:5173", "http://127.0.0.1:5173"}
 	}
@@ -62,7 +80,7 @@ func corsConfig(cfg config.Config) cors.Config {
 	return cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "OPTIONS", "DELETE"},
-		AllowHeaders:     []string{"Content-Type", "X-Request-Id", "Authorization"}, // Added Authorization
+		AllowHeaders:     []string{"Content-Type", "X-Request-Id", "Authorization"},
 		ExposeHeaders:    []string{"X-Request-Id"},
 		AllowCredentials: true,
 	}
