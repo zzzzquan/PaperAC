@@ -36,7 +36,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		BindAddress:         getEnv("BIND_ADDR", ":8080"),
+		BindAddress:         getBindAddress(),
 		Environment:         getEnv("APP_ENV", "development"),
 		DBPath:              getEnv("DB_DSN", "/data/paperac.db"), // 默认 persistent volume 路径
 		JWTSecret:           getEnv("JWT_SECRET", "change-me-in-prod"),
