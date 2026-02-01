@@ -6,7 +6,7 @@
 
 # Go
 server/api
-server/go.sum
+
 
 # Node/Frontend
 node_modules/
