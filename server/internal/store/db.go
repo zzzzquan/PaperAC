@@ -35,6 +35,7 @@ type Task struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	FinishedAt       *time.Time
+	SessionID        string `gorm:"index"` // 关联会话ID
 }
 
 type TaskStatus string
@@ -96,10 +97,11 @@ func (s *Store) GetTaskByID(ctx context.Context, id string) (*Task, error) {
 	return &t, nil
 }
 
-// ListRecentTasks 获取最近的任务列表（不按用户过滤）
-func (s *Store) ListRecentTasks(ctx context.Context, limit int) ([]Task, error) {
+// ListRecentTasks 获取当前会话的任务列表
+func (s *Store) ListRecentTasks(ctx context.Context, sessionID string, limit int) ([]Task, error) {
 	var tasks []Task
 	err := s.DB.WithContext(ctx).
+		Where("session_id = ?", sessionID).
 		Order("created_at desc").
 		Limit(limit).
 		Find(&tasks).Error
@@ -144,4 +146,9 @@ func (s *Store) CancelTask(ctx context.Context, taskID string) (bool, error) {
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// DeleteTasksBySessionID 删除指定会话的所有任务
+func (s *Store) DeleteTasksBySessionID(ctx context.Context, sessionID string) error {
+	return s.DB.WithContext(ctx).Where("session_id = ?", sessionID).Delete(&Task{}).Error
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createTask, fetchTasks, previewTask } from "./api";
+import { createTask, fetchTasks, previewTask, clearSession } from "./api";
 
 export default function App() {
   const [loading, setLoading] = useState(false);
@@ -15,6 +15,27 @@ export default function App() {
     const timer = setInterval(loadTasks, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  // 页面关闭/刷新时尝试清理会话
+  // 注意：刷新也会触发清理，这意味着刷新后会话丢失，符合"Exit"即退出的隐私要求
+  useEffect(() => {
+    const handleUnload = () => {
+      // 使用 fetch keepalive 尝试清理
+      // 我们不能直接调用 clearSession 因为它是异步的且没用 keepalive
+      // 这里手动构建请求
+      const sid = sessionStorage.getItem("paperac_sid");
+      if (sid) {
+        fetch("/api/session", {
+          method: "DELETE",
+          headers: { "X-Session-ID": sid },
+          keepalive: true
+        });
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, []);
+
 
   async function loadTasks() {
     try {
@@ -56,6 +77,17 @@ export default function App() {
     }
   }
 
+  async function handleClearSession() {
+    if (!confirm("确定要结束会话并清除所有记录吗？")) return;
+    try {
+      await clearSession();
+      setTasks([]);
+      setMessage("会话已结束，记录已清除");
+    } catch (err) {
+      alert("清理失败: " + err.message);
+    }
+  }
+
   function formatFileSize(bytes) {
     if (!bytes) return "-";
     if (bytes < 1024) return bytes + " B";
@@ -87,8 +119,13 @@ export default function App() {
   return (
     <div className="page">
       <header className="header">
-        <h1>PaperAC 文鉴</h1>
-        <p>高情商论文AIGC检测工具</p>
+        <div className="header-left">
+          <h1>PaperAC 文鉴</h1>
+          <p>高情商论文AIGC检测工具</p>
+        </div>
+        <button className="link-btn" style={{ color: '#999' }} onClick={handleClearSession}>
+          结束会话
+        </button>
       </header>
 
       {message && <p className="message info">{message}</p>}
@@ -157,3 +194,4 @@ export default function App() {
     </div>
   );
 }
+

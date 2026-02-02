@@ -70,8 +70,17 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 	now := util.Now()
 
+	sessionID := c.GetHeader("X-Session-ID")
+	if sessionID == "" {
+		// 允许匿名创建，但给出警告或记录？
+		// 为了简化，如果没有SessionID，我们也可以允许，但意味着无法通过session隔离（或者生成一个临时的）
+		// 按照需求，必须隔离。强制要求前端传。
+		// 但为了兼容性，如果不传，就不关联session。
+	}
+
 	task := &store.Task{
 		ID:               taskID.String(),
+		SessionID:        sessionID,
 		Status:           store.TaskPending,
 		Progress:         0,
 		X:                xValue,
@@ -118,8 +127,15 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 }
 
 func (h *TaskHandler) ListTasks(c *gin.Context) {
+	sessionID := c.GetHeader("X-Session-ID")
+	if sessionID == "" {
+		// 没有SessionID，返回空列表
+		util.OK(c, gin.H{"items": []interface{}{}})
+		return
+	}
+
 	limit := parseLimit(c.Query("limit"))
-	tasks, err := h.Store.ListRecentTasks(c.Request.Context(), limit)
+	tasks, err := h.Store.ListRecentTasks(c.Request.Context(), sessionID, limit)
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务列表查询失败", nil)
 		return
@@ -132,6 +148,19 @@ func (h *TaskHandler) ListTasks(c *gin.Context) {
 	}
 
 	util.OK(c, gin.H{"items": data})
+}
+
+func (h *TaskHandler) ClearSession(c *gin.Context) {
+	sessionID := c.GetHeader("X-Session-ID")
+	if sessionID == "" {
+		util.JSON(c, http.StatusBadRequest, 1001, "缺少SessionID", nil)
+		return
+	}
+	if err := h.Store.DeleteTasksBySessionID(c.Request.Context(), sessionID); err != nil {
+		util.JSON(c, http.StatusInternalServerError, 9000, "会话清理失败", nil)
+		return
+	}
+	util.OK(c, nil)
 }
 
 func (h *TaskHandler) DownloadResult(c *gin.Context) {

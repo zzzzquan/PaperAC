@@ -52,6 +52,9 @@ func NewRouter(cfg config.Config, db *store.Store, workerService *worker.Worker)
 	tasks.GET("/:id/result", taskHandler.DownloadResult)
 	tasks.DELETE("/:id", taskHandler.CancelTask)
 
+	// 会话清理
+	api.DELETE("/session", taskHandler.ClearSession)
+
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -69,7 +72,7 @@ func corsConfig(cfg config.Config) cors.Config {
 	return cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "OPTIONS", "DELETE"},
-		AllowHeaders:     []string{"Content-Type", "X-Request-Id"},
+		AllowHeaders:     []string{"Content-Type", "X-Request-Id", "X-Session-ID"},
 		ExposeHeaders:    []string{"X-Request-Id"},
 		AllowCredentials: true,
 	}
