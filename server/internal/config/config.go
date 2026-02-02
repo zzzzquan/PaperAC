@@ -1,6 +1,7 @@
 package config
 
 // 配置加载：从环境变量读取运行参数。
+// 简化版：移除认证相关配置。
 
 import (
 	"os"
@@ -16,42 +17,26 @@ type Config struct {
 	// Database
 	DBPath string // SQLite 文件路径
 
-	JWTSecret string
-
 	UploadDir         string
 	ResultDir         string
 	MaxUploadMB       int
 	TaskTimeout       time.Duration
 	WorkerConcurrency int
 
-	DirectMailEndpoint  string
-	DirectMailAccessKey string
-	DirectMailSecret    string
-	DirectMailAccount   string
-	DirectMailTemplate  string
-	MailerMode          string
-
 	CORSAllowOrigins []string
 }
 
 func Load() Config {
 	return Config{
-		BindAddress:         getBindAddress(),
-		Environment:         getEnv("APP_ENV", "development"),
-		DBPath:              getEnv("DB_DSN", "/data/paperac.db"), // 默认 persistent volume 路径
-		JWTSecret:           getEnv("JWT_SECRET", "change-me-in-prod"),
-		UploadDir:           getEnv("UPLOAD_DIR", "/data/tmp/uploads"), // 需确保 /data/tmp 存在
-		ResultDir:           getEnv("RESULT_DIR", "/data/tmp/results"),
-		MaxUploadMB:         getEnvInt("MAX_UPLOAD_MB", 50),
-		TaskTimeout:         getEnvDuration("TASK_TIMEOUT", 10*time.Minute),
-		WorkerConcurrency:   getEnvInt("WORKER_CONCURRENCY", 5),
-		DirectMailEndpoint:  getEnv("DIRECTMAIL_ENDPOINT", "dm.aliyuncs.com"),
-		DirectMailAccessKey: getEnv("ALIYUN_ACCESS_KEY", ""),
-		DirectMailSecret:    getEnv("ALIYUN_SECRET_KEY", ""),
-		DirectMailAccount:   getEnv("DM_ACCOUNT_NAME", "admin@mail.paperac.com"),
-		DirectMailTemplate:  getEnv("DIRECTMAIL_TEMPLATE_NAME", ""),
-		MailerMode:          getEnv("MAILER_MODE", "mock"), // mock or directmail
-		CORSAllowOrigins:    splitCSV(getEnv("CORS_ALLOW_ORIGINS", "")),
+		BindAddress:       getBindAddress(),
+		Environment:       getEnv("APP_ENV", "development"),
+		DBPath:            getEnv("DB_DSN", "./paperac.db"),      // 默认本地文件路径
+		UploadDir:         getEnv("UPLOAD_DIR", "./tmp/uploads"), // 默认本地上传目录
+		ResultDir:         getEnv("RESULT_DIR", "./tmp/results"), // 默认本地结果目录
+		MaxUploadMB:       getEnvInt("MAX_UPLOAD_MB", 50),
+		TaskTimeout:       getEnvDuration("TASK_TIMEOUT", 10*time.Minute),
+		WorkerConcurrency: getEnvInt("WORKER_CONCURRENCY", 5),
+		CORSAllowOrigins:  splitCSV(getEnv("CORS_ALLOW_ORIGINS", "")),
 	}
 }
 

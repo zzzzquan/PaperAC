@@ -115,6 +115,7 @@ th, td {
   padding: 12px;
   text-align: left;
   border-bottom: 1px solid #f0f0f5;
+  vertical-align: middle;
 }
 
 th {
@@ -122,50 +123,47 @@ th {
   font-weight: 500;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  background: #eee;
-  color: #666;
+/* Status Icons */
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
 
-.status-badge.running {
-  background: #e6f6ff;
-  color: #0070f3;
+/* Spinner Animation */
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
 }
 
-.status-badge.success {
-  background: #ecfdf5;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Checkmark */
+.checkmark {
   color: #10b981;
+  font-size: 20px;
+  font-weight: bold;
 }
 
-.status-badge.failed {
-  background: #fff1f2;
-  color: #e11d48;
+.checkmark svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
-.progress-bar {
-  background: #eee;
-  height: 6px;
-  border-radius: 3px;
-  width: 100px;
-  overflow: hidden;
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 8px;
-}
-
-.progress-bar .fill {
-  height: 100%;
-  background: #1f6feb;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: #666;
+.failed-icon {
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 .download-link {
@@ -182,4 +180,17 @@ th {
   text-align: center;
   color: #999;
   padding: 40px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #1f6feb;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  text-decoration: none;
+}
+.link-btn:hover {
+  text-decoration: underline;
 }

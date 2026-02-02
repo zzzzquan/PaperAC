@@ -1,6 +1,7 @@
 package main
 
 // 应用入口：加载配置、初始化依赖并启动HTTP服务。
+// 简化版：无用户认证。
 
 import (
 	"context"
@@ -12,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"aigc-detector/server/internal/auth"
 	"aigc-detector/server/internal/config"
 	httpserver "aigc-detector/server/internal/http"
 	"aigc-detector/server/internal/store"
@@ -29,16 +29,12 @@ func main() {
 	}
 	defer db.Close()
 
-	// 阿里云 DirectMail
-	mailer := auth.NewDirectMailClient(cfg)
-	authService := auth.NewService(db, mailer, cfg)
-
 	if err := ensureDirs(cfg); err != nil {
 		log.Fatalf("初始化存储目录失败: %v", err)
 	}
 
 	workerService := &worker.Worker{Store: db, Config: cfg}
-	router := httpserver.NewRouter(cfg, authService, workerService)
+	router := httpserver.NewRouter(cfg, db, workerService)
 
 	server := &http.Server{
 		Addr:         cfg.BindAddress,

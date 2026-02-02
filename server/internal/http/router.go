@@ -1,15 +1,15 @@
 package http
 
-// 路由注册与中间件组装。
+// 路由注册与中间件组装（无登录认证版本）。
 
 import (
 	"net/http"
 	"strings"
 
-	"aigc-detector/server/internal/auth"
 	"aigc-detector/server/internal/config"
 	"aigc-detector/server/internal/handlers"
 	"aigc-detector/server/internal/http/middleware"
+	"aigc-detector/server/internal/store"
 	"aigc-detector/server/internal/worker"
 
 	"github.com/gin-contrib/cors"
@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(cfg config.Config, authService *auth.Service, worker *worker.Worker) *gin.Engine {
+func NewRouter(cfg config.Config, db *store.Store, workerService *worker.Worker) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
@@ -29,7 +29,6 @@ func NewRouter(cfg config.Config, authService *auth.Service, worker *worker.Work
 
 	// Static File Serving (Monolithic)
 	// Serve "./dist" directory at root "/"
-	// Make sure this is AFTER CORS if needed, or BEFORE if public
 	router.Use(static.Serve("/", static.LocalFile("./dist", true)))
 
 	// SPA Fallback: If not API, serve index.html
@@ -41,22 +40,12 @@ func NewRouter(cfg config.Config, authService *auth.Service, worker *worker.Work
 		}
 	})
 
-	handler := &auth.Handler{Service: authService, Config: cfg}
-	taskHandler := &handlers.TaskHandler{Store: authService.Store(), Worker: worker, Config: cfg}
+	taskHandler := &handlers.TaskHandler{Store: db, Worker: workerService, Config: cfg}
 
 	api := router.Group("/api")
 
-	authGroup := api.Group("/auth")
-	authGroup.POST("/send-code", handler.SendCode)
-	authGroup.POST("/verify", handler.Verify)
-
-	protected := authGroup.Group("")
-	protected.Use(middleware.JWTAuth(cfg))
-	protected.GET("/me", handler.Me)
-	protected.POST("/logout", handler.Logout)
-
+	// 任务路由（无需认证）
 	tasks := api.Group("/tasks")
-	tasks.Use(middleware.JWTAuth(cfg))
 	tasks.POST("", taskHandler.CreateTask)
 	tasks.GET("", taskHandler.ListTasks)
 	tasks.GET("/:id", taskHandler.GetTask)
@@ -80,7 +69,7 @@ func corsConfig(cfg config.Config) cors.Config {
 	return cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "OPTIONS", "DELETE"},
-		AllowHeaders:     []string{"Content-Type", "X-Request-Id", "Authorization"},
+		AllowHeaders:     []string{"Content-Type", "X-Request-Id"},
 		ExposeHeaders:    []string{"X-Request-Id"},
 		AllowCredentials: true,
 	}

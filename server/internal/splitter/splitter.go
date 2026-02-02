@@ -10,10 +10,12 @@ import (
 type SegmentType string
 
 const (
-	SegmentBody  SegmentType = "body"  // 正文
-	SegmentTitle SegmentType = "title" // 标题
-	SegmentTable SegmentType = "table" // 表格行
-	SegmentList  SegmentType = "list"  // 列表项
+	SegmentBody    SegmentType = "body"    // 正文（参与AIGC检测）
+	SegmentTitle   SegmentType = "title"   // 标题
+	SegmentTable   SegmentType = "table"   // 表格行
+	SegmentList    SegmentType = "list"    // 列表项
+	SegmentMeta    SegmentType = "meta"    // 元信息（封面、表头等，不参与检测）
+	SegmentNewline SegmentType = "newline" // 硬换行
 )
 
 // Segment 表示一个带类型的文本段落
@@ -35,14 +37,12 @@ var listPatternRe = regexp.MustCompile(`^(\d+[.、)）]|\([0-9a-zA-Z]+\)|[•●
 var tablePatternRe = regexp.MustCompile(`\s{2,}|\t`)
 
 // 特殊字符正则（用于过滤不适合检测的句子）
-// 包括：数学符号、公式符号、特殊符号、网址、代码相关符号、减号、间隔号等
-// 注意：中文括号（）不过滤，英文括号()过滤
 var specialCharRe = regexp.MustCompile(`[#$%&*+/<=>@\\^_` + "`" + `{|}~\[\]\(\)\-×÷∑∏∫∂√∞≈≠≤≥±°′″αβγδεζηθικλμνξπρστυφχψω·]`)
 
-// 论文封面/表头信息正则（包含这些关键词的句子不应该被检测）
+// 论文封面/表头信息正则
 var coverInfoRe = regexp.MustCompile(`(学号|姓名|班级|专业|学院|书院|题目|课程|论文|评阅|成绩|指导|教师|序号|负责|组别|全员|全英文|专题[一二三四五六七八九十]|\d{10,})`)
 
-// 纯数字或学号模式（如 1120241363）
+// 纯数字或学号模式
 var pureNumberRe = regexp.MustCompile(`^\d+$|1[12]\d{8,}`)
 
 // Split 将长文本切分为句子（保持向后兼容）
@@ -50,7 +50,9 @@ func Split(text string) []string {
 	segments := SplitWithStructure(text)
 	var result []string
 	for _, seg := range segments {
-		result = append(result, seg.Text)
+		if seg.Type != SegmentNewline {
+			result = append(result, seg.Text)
+		}
 	}
 	return result
 }
@@ -59,32 +61,39 @@ func Split(text string) []string {
 func SplitWithStructure(text string) []Segment {
 	var segments []Segment
 
-	// 按空行或换行分割成段落
-	paragraphs := strings.Split(text, "\n")
+	// 按换行符分割，保留原本的行结构
+	// 使用 strings.Split 会把换行符吃掉，我们在循环末尾补上 SegmentNewline
+	lines := strings.Split(text, "\n")
 
-	for _, para := range paragraphs {
-		para = strings.TrimSpace(para)
-		if para == "" {
-			continue
+	for i, line := range lines {
+		// 移除首尾空白，但保留内容
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed != "" {
+			segType := detectSegmentType(trimmed)
+			if segType == SegmentBody {
+				// 正文分句
+				sentences := splitSentences(trimmed)
+				for _, s := range sentences {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						continue
+					}
+					if shouldFilter(s) {
+						segments = append(segments, Segment{Text: s, Type: SegmentMeta})
+					} else {
+						segments = append(segments, Segment{Text: s, Type: SegmentBody})
+					}
+				}
+			} else {
+				// 非正文保持原样
+				segments = append(segments, Segment{Text: trimmed, Type: segType})
+			}
 		}
 
-		segType := detectSegmentType(para)
-
-		if segType == SegmentBody {
-			// 对正文进行分句
-			sentences := splitSentences(para)
-			for _, s := range sentences {
-				s = strings.TrimSpace(s)
-				if s != "" && !hasSpecialCharacters(s) {
-					// 只保留不含特殊字符的句子
-					segments = append(segments, Segment{Text: s, Type: SegmentBody})
-				}
-			}
-		} else {
-			// 非正文类型保持原样（但也过滤特殊字符）
-			if !hasSpecialCharacters(para) {
-				segments = append(segments, Segment{Text: para, Type: segType})
-			}
+		// 除非是最后一行，否则每一行结束后都插入一个硬换行
+		if i < len(lines)-1 {
+			segments = append(segments, Segment{Text: "", Type: SegmentNewline})
 		}
 	}
 
@@ -92,99 +101,69 @@ func SplitWithStructure(text string) []Segment {
 }
 
 // shouldFilter 检查句子是否应该被过滤掉
-// 返回 true 表示应该被过滤掉，不参与检测
 func shouldFilter(s string) bool {
-	// 检查特殊字符
 	if specialCharRe.MatchString(s) {
 		return true
 	}
-	// 检查论文封面/表头信息关键词
 	if coverInfoRe.MatchString(s) {
 		return true
 	}
-	// 检查纯数字或学号
 	if pureNumberRe.MatchString(s) {
 		return true
 	}
 	return false
 }
 
-// hasSpecialCharacters 检查句子是否含有特殊字符（保持向后兼容）
-func hasSpecialCharacters(s string) bool {
-	return shouldFilter(s)
-}
-
 // detectSegmentType 检测段落类型
 func detectSegmentType(para string) SegmentType {
-	// 优先检查列表项（有明确的格式特征）
 	if listPatternRe.MatchString(para) {
 		return SegmentList
 	}
-
-	// 检查是否是表格行（包含多个连续空格或制表符）
 	if isTableRow(para) {
 		return SegmentTable
 	}
-
-	// 检查是否是标题
 	if isTitle(para) {
 		return SegmentTitle
 	}
-
 	return SegmentBody
 }
 
 // isTitle 判断是否是标题
 func isTitle(para string) bool {
 	runeCount := len([]rune(para))
-
-	// 太长不可能是标题
 	if runeCount > 50 {
 		return false
 	}
-
-	// 匹配章节标题模式
 	if titlePatternRe.MatchString(para) {
 		return true
 	}
-
-	// 以冒号结尾的通常是引导语，不是标题
 	if strings.HasSuffix(para, "：") || strings.HasSuffix(para, ":") {
 		return false
 	}
-
-	// 短文本且不以句末标点结尾
 	if runeCount <= 25 && !sentenceEndRe.MatchString(para) {
-		// 排除以连接词结尾的句子片段
 		connectors := []string{"的", "和", "与", "或", "但", "而", "是", "在", "了", "有", "为", "对", "从", "到"}
 		for _, c := range connectors {
 			if strings.HasSuffix(para, c) {
 				return false
 			}
 		}
-		// 检查是否主要是中文字符（标题通常是中文）
 		chineseCount := 0
 		for _, r := range para {
 			if unicode.Is(unicode.Han, r) {
 				chineseCount++
 			}
 		}
-		// 如果超过一半是中文字符，且较短，认为是标题
 		if float64(chineseCount)/float64(runeCount) > 0.5 {
 			return true
 		}
 	}
-
 	return false
 }
 
 // isTableRow 判断是否是表格行
 func isTableRow(para string) bool {
-	// 表格行特征：包含多个连续空格或制表符分隔的内容
 	matches := tablePatternRe.FindAllStringIndex(para, -1)
-	// 如果有多个分隔符，可能是表格行
 	if len(matches) >= 2 {
-		// 进一步验证：检查是否有数字或短文本片段
 		parts := tablePatternRe.Split(para, -1)
 		shortParts := 0
 		for _, p := range parts {
@@ -193,7 +172,6 @@ func isTableRow(para string) bool {
 				shortParts++
 			}
 		}
-		// 如果大部分是短片段，认为是表格行
 		return shortParts >= 3
 	}
 	return false
@@ -201,10 +179,8 @@ func isTableRow(para string) bool {
 
 // splitSentences 将段落分割成句子
 func splitSentences(para string) []string {
-	// 使用标点符号分割，保留标点
 	temp := sentenceEndRe.ReplaceAllString(para, "$1\n")
 	lines := strings.Split(temp, "\n")
-
 	var result []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

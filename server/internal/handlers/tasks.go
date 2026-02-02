@@ -1,6 +1,7 @@
 package handlers
 
 // 任务相关接口：上传、查询、列表、下载、取消。
+// 简化版：无用户认证。
 
 import (
 	"errors"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"aigc-detector/server/internal/auth"
 	"aigc-detector/server/internal/config"
 	"aigc-detector/server/internal/store"
 	"aigc-detector/server/internal/util"
@@ -36,12 +36,6 @@ type TaskHandler struct {
 }
 
 func (h *TaskHandler) CreateTask(c *gin.Context) {
-	user, err := auth.CurrentUser(c)
-	if err != nil {
-		util.JSON(c, http.StatusUnauthorized, 2001, "未登录", nil)
-		return
-	}
-
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		util.JSON(c, http.StatusBadRequest, 1001, "缺少PDF文件", nil)
@@ -74,21 +68,15 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	userID, err := uuid.Parse(user.UserID)
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "用户信息无效", nil)
-		return
-	}
-
 	now := util.Now()
 
 	task := &store.Task{
 		ID:               taskID.String(),
-		UserID:           userID.String(),
 		Status:           store.TaskPending,
 		Progress:         0,
 		X:                xValue,
 		OriginalFileName: header.Filename,
+		FileSize:         header.Size,
 		UploadPath:       uploadPath,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -99,7 +87,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	// 异步执行任务 (Serverless 模式下直接启动 Goroutine)
+	// 异步执行任务
 	go h.Worker.ProcessTask(taskID.String())
 
 	util.OK(c, gin.H{
@@ -110,25 +98,13 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 }
 
 func (h *TaskHandler) GetTask(c *gin.Context) {
-	user, err := auth.CurrentUser(c)
-	if err != nil {
-		util.JSON(c, http.StatusUnauthorized, 2001, "未登录", nil)
-		return
-	}
-
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		util.JSON(c, http.StatusBadRequest, 1001, "任务ID无效", nil)
 		return
 	}
 
-	userID, err := uuid.Parse(user.UserID)
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "用户信息无效", nil)
-		return
-	}
-
-	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID.String(), userID.String())
+	task, err := h.Store.GetTaskByID(c.Request.Context(), taskID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务查询失败", nil)
 		return
@@ -142,19 +118,8 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 }
 
 func (h *TaskHandler) ListTasks(c *gin.Context) {
-	user, err := auth.CurrentUser(c)
-	if err != nil {
-		util.JSON(c, http.StatusUnauthorized, 2001, "未登录", nil)
-		return
-	}
-	userID, err := uuid.Parse(user.UserID)
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "用户信息无效", nil)
-		return
-	}
-
 	limit := parseLimit(c.Query("limit"))
-	tasks, err := h.Store.ListTasksByUser(c.Request.Context(), userID.String(), limit)
+	tasks, err := h.Store.ListRecentTasks(c.Request.Context(), limit)
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务列表查询失败", nil)
 		return
@@ -170,25 +135,13 @@ func (h *TaskHandler) ListTasks(c *gin.Context) {
 }
 
 func (h *TaskHandler) DownloadResult(c *gin.Context) {
-	user, err := auth.CurrentUser(c)
-	if err != nil {
-		util.JSON(c, http.StatusUnauthorized, 2001, "未登录", nil)
-		return
-	}
-
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		util.JSON(c, http.StatusBadRequest, 1001, "任务ID无效", nil)
 		return
 	}
 
-	userID, err := uuid.Parse(user.UserID)
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "用户信息无效", nil)
-		return
-	}
-
-	task, err := h.Store.GetTaskForUser(c.Request.Context(), taskID.String(), userID.String())
+	task, err := h.Store.GetTaskByID(c.Request.Context(), taskID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务查询失败", nil)
 		return
@@ -206,23 +159,13 @@ func (h *TaskHandler) DownloadResult(c *gin.Context) {
 }
 
 func (h *TaskHandler) CancelTask(c *gin.Context) {
-	user, err := auth.CurrentUser(c)
-	if err != nil {
-		util.JSON(c, http.StatusUnauthorized, 2001, "未登录", nil)
-		return
-	}
-	userID, err := uuid.Parse(user.UserID)
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "用户信息无效", nil)
-		return
-	}
 	taskID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		util.JSON(c, http.StatusBadRequest, 1001, "任务ID无效", nil)
 		return
 	}
 
-	ok, err := h.Store.CancelTask(c.Request.Context(), taskID.String(), userID.String())
+	ok, err := h.Store.CancelTask(c.Request.Context(), taskID.String())
 	if err != nil {
 		util.JSON(c, http.StatusInternalServerError, 9000, "任务取消失败", nil)
 		return
@@ -304,6 +247,7 @@ func taskToResponse(task *store.Task) gin.H {
 		"progress":      task.Progress,
 		"x":             task.X,
 		"filename":      task.OriginalFileName,
+		"file_size":     task.FileSize,
 		"error_message": task.ErrorMessage,
 		"created_at":    task.CreatedAt,
 		"updated_at":    task.UpdatedAt,

@@ -5,48 +5,50 @@ import (
 	"fmt"
 	"html/template"
 	"time"
+	"unicode/utf8"
 
 	"aigc-detector/server/internal/algo"
 )
 
 // ReportData 渲染模板所需的数据
 type ReportData struct {
-	Filename    string
-	GeneratedAt string
-	TotalRatio  string // e.g. "30.5%"
-	BodyCount   int    // 正文句子数
-	AICount     int    // AI句子数
-	Sentences   []algo.SentenceResult
+	Filename       string
+	GeneratedAt    string
+	TotalRatio     string // e.g. "10.5%"
+	TotalBodyChars int    // 正文总字数
+	AIChars        int    // AI标记字数
+	Sentences      []algo.SentenceResult
 }
 
 // GenerateHTML 生成 HTML 报告
-func GenerateHTML(filename string, sentences []algo.SentenceResult, x float64) ([]byte, error) {
-	// 计算实际的 AIGC 占比（只统计正文类型）
-	var aiCount, bodyCount int
+func GenerateHTML(filename string, sentences []algo.SentenceResult, _ float64) ([]byte, error) {
+	// 计算实际的 AIGC 占比（按字数统计，只统计正文类型）
+	var aiChars, totalBodyChars int
 	for _, s := range sentences {
 		if s.Type == "body" {
-			bodyCount++
+			charCount := utf8.RuneCountInString(s.Text)
+			totalBodyChars += charCount
 			if s.Label == "ai" {
-				aiCount++
+				aiChars += charCount
 			}
 		}
 	}
 
 	var ratioStr string
-	if bodyCount > 0 {
-		ratio := float64(aiCount) / float64(bodyCount)
+	if totalBodyChars > 0 {
+		ratio := float64(aiChars) / float64(totalBodyChars)
 		ratioStr = fmt.Sprintf("%.1f%%", ratio*100)
 	} else {
 		ratioStr = "0.0%"
 	}
 
 	data := ReportData{
-		Filename:    filename,
-		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
-		TotalRatio:  ratioStr,
-		BodyCount:   bodyCount,
-		AICount:     aiCount,
-		Sentences:   sentences,
+		Filename:       filename,
+		GeneratedAt:    time.Now().Format("2006-01-02 15:04:05"),
+		TotalRatio:     ratioStr,
+		TotalBodyChars: totalBodyChars,
+		AIChars:        aiChars,
+		Sentences:      sentences,
 	}
 
 	tmpl, err := template.New("report").Parse(htmlTemplate)
@@ -63,6 +65,7 @@ func GenerateHTML(filename string, sentences []algo.SentenceResult, x float64) (
 }
 
 // 简单的内嵌 HTML 模板 - 纯文本堆叠格式
+// 修改：支持渲染 <br> 用于 newline 类型
 const htmlTemplate = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -140,10 +143,10 @@ const htmlTemplate = `
     <div class="score-card">
         <div class="score-value">{{.TotalRatio}}</div>
         <div class="score-label">疑似 AIGC 生成比例</div>
-        <div class="score-detail">检测句子数: {{.BodyCount}} | 疑似AI生成: {{.AICount}}</div>
+        <div class="score-detail">正文总字数: {{.TotalBodyChars}} | 疑似AI生成字数: {{.AIChars}}</div>
     </div>
 
-    <div class="content">{{range .Sentences}}<span class="{{.Label}}">{{.Text}}</span>{{end}}</div>
+    <div class="content">{{range .Sentences}}{{if eq .Type "newline"}}<br>{{else}}<span class="{{.Label}}">{{.Text}}</span>{{end}}{{end}}</div>
 </body>
 </html>
 `
