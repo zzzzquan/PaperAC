@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchMe, logout, sendCode, verifyCode, createTask, fetchTasks } from "./api";
+import { fetchMe, logout, sendCode, verifyCode, createTask, fetchTasks, previewTask, setToken, removeToken } from "./api";
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -69,6 +69,9 @@ export default function App() {
     setMessage("");
     try {
       const res = await verifyCode(email, code);
+      if (res.data.token) {
+        setToken(res.data.token);
+      }
       setMe(res.data);
       setMessage("登录成功");
     } catch (err) {
@@ -83,12 +86,13 @@ export default function App() {
     setMessage("");
     try {
       await logout();
+    } catch (err) {
+      console.warn("Logout failed on server:", err);
+    } finally {
+      removeToken();
       setMe(null);
       setTasks([]);
       setMessage("已退出登录");
-    } catch (err) {
-      setMessage(err.message);
-    } finally {
       setLoading(false);
     }
   }
@@ -109,6 +113,14 @@ export default function App() {
       setMessage(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePreview(task) {
+    try {
+      await previewTask(task.task_id);
+    } catch (err) {
+      alert("预览失败: " + err.message);
     }
   }
 
@@ -231,14 +243,12 @@ export default function App() {
                     </td>
                     <td>
                       {task.status === 'success' ? (
-                        <a
-                          href={`/api/tasks/${task.task_id}/result`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="download-link"
+                        <button
+                          className="link-btn"
+                          onClick={() => handlePreview(task)}
                         >
-                          下载报告
-                        </a>
+                          查看报告
+                        </button>
                       ) : (
                         <span className="disabled-text">-</span>
                       )}

@@ -24,7 +24,9 @@ FROM alpine:latest
 WORKDIR /app
 
 # 安装必要的运行时依赖 (证书、时区)
+# 安装必要的运行时依赖 (证书、时区)
 RUN apk --no-cache add ca-certificates tzdata
+ENV TZ=Asia/Shanghai
 
 # 创建持久化数据目录
 RUN mkdir -p /data/tmp

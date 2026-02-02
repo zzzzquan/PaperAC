@@ -55,7 +55,7 @@ func (s *Service) SendCode(ctx context.Context, email string, ip string) error {
 	}
 
 	// Save to DB
-	expiresAt := time.Now().UTC().Add(CodeTTL)
+	expiresAt := util.Now().Add(CodeTTL)
 	if err := s.store.SaveVerificationCode(ctx, email, code, expiresAt); err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (s *Service) Verify(ctx context.Context, email string, code string) (string
 	}
 
 	// Generate JWT
-	now := time.Now()
+	now := util.Now()
 	claims := jwt.MapClaims{
 		"uid":   user.ID,
 		"email": user.Email,

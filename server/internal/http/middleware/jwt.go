@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -31,6 +32,7 @@ func JWTAuth(cfg config.Config) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
+			log.Printf("JWT Auth Failed: err=%v, valid=%v, token=%s", err, token != nil && token.Valid, tokenString)
 			util.JSON(c, http.StatusUnauthorized, 401, "无效的令牌", nil)
 			c.Abort()
 			return

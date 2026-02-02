@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"aigc-detector/server/internal/util"
+
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -100,7 +102,7 @@ func (s *Store) SaveVerificationCode(ctx context.Context, email, code string, ex
 func (s *Store) GetVerificationCode(ctx context.Context, email, code string) (*VerificationCode, error) {
 	var v VerificationCode
 	err := s.DB.WithContext(ctx).
-		Where("email = ? AND code = ? AND expires_at > ?", email, code, time.Now()).
+		Where("email = ? AND code = ? AND expires_at > ?", email, code, util.Now()).
 		Order("created_at desc").
 		First(&v).Error
 	if err != nil {
@@ -134,7 +136,7 @@ func (s *Store) CreateUser(ctx context.Context, email string) (*User, error) {
 	user := &User{
 		ID:        uuid.New().String(),
 		Email:     email,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: util.Now(),
 	}
 	if err := s.DB.WithContext(ctx).Create(user).Error; err != nil {
 		return nil, err
@@ -204,7 +206,7 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID string, status Task
 	updates := map[string]interface{}{
 		"status":     status,
 		"progress":   progress,
-		"updated_at": time.Now().UTC(),
+		"updated_at": util.Now(),
 	}
 	// GORM ignores empty strings by default in struct updates, map is safer
 	if resultPath != "" {
@@ -224,7 +226,7 @@ func (s *Store) UpdateTaskProgress(ctx context.Context, taskID string, progress 
 	return s.DB.WithContext(ctx).Model(&Task{}).Where("id = ?", taskID).
 		Updates(map[string]interface{}{
 			"progress":   progress,
-			"updated_at": time.Now().UTC(),
+			"updated_at": util.Now(),
 		}).Error
 }
 

@@ -80,7 +80,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	now := time.Now().UTC()
+	now := util.Now()
 
 	task := &store.Task{
 		ID:               taskID.String(),
