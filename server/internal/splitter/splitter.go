@@ -36,7 +36,14 @@ var tablePatternRe = regexp.MustCompile(`\s{2,}|\t`)
 
 // 特殊字符正则（用于过滤不适合检测的句子）
 // 包括：数学符号、公式符号、特殊符号、网址、代码相关符号、减号、间隔号等
-var specialCharRe = regexp.MustCompile(`[#$%&*+/<=>@\\^_` + "`" + `{|}~\[\]（）\(\)\-×÷∑∏∫∂√∞≈≠≤≥±°′″αβγδεζηθικλμνξπρστυφχψω·]`)
+// 注意：中文括号（）不过滤，英文括号()过滤
+var specialCharRe = regexp.MustCompile(`[#$%&*+/<=>@\\^_` + "`" + `{|}~\[\]\(\)\-×÷∑∏∫∂√∞≈≠≤≥±°′″αβγδεζηθικλμνξπρστυφχψω·]`)
+
+// 论文封面/表头信息正则（包含这些关键词的句子不应该被检测）
+var coverInfoRe = regexp.MustCompile(`(学号|姓名|班级|专业|学院|书院|题目|课程|论文|评阅|成绩|指导|教师|序号|负责|组别|全员|全英文|专题[一二三四五六七八九十]|\d{10,})`)
+
+// 纯数字或学号模式（如 1120241363）
+var pureNumberRe = regexp.MustCompile(`^\d+$|1[12]\d{8,}`)
 
 // Split 将长文本切分为句子（保持向后兼容）
 func Split(text string) []string {
@@ -84,10 +91,27 @@ func SplitWithStructure(text string) []Segment {
 	return segments
 }
 
-// hasSpecialCharacters 检查句子是否含有特殊字符
-// 返回 true 表示含有特殊字符，应该被过滤掉
+// shouldFilter 检查句子是否应该被过滤掉
+// 返回 true 表示应该被过滤掉，不参与检测
+func shouldFilter(s string) bool {
+	// 检查特殊字符
+	if specialCharRe.MatchString(s) {
+		return true
+	}
+	// 检查论文封面/表头信息关键词
+	if coverInfoRe.MatchString(s) {
+		return true
+	}
+	// 检查纯数字或学号
+	if pureNumberRe.MatchString(s) {
+		return true
+	}
+	return false
+}
+
+// hasSpecialCharacters 检查句子是否含有特殊字符（保持向后兼容）
 func hasSpecialCharacters(s string) bool {
-	return specialCharRe.MatchString(s)
+	return shouldFilter(s)
 }
 
 // detectSegmentType 检测段落类型
