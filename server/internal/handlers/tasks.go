@@ -48,12 +48,6 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	xValue, err := parseX(c.PostForm("x"))
-	if err != nil {
-		util.JSON(c, http.StatusBadRequest, 1001, "参数x无效", nil)
-		return
-	}
-
 	if err := ensurePDF(file, header); err != nil {
 		util.JSON(c, http.StatusBadRequest, 1002, "仅支持PDF文件", nil)
 		return
@@ -83,7 +77,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		SessionID:        sessionID,
 		Status:           store.TaskPending,
 		Progress:         0,
-		X:                xValue,
+		X:                0, // No longer used
 		OriginalFileName: header.Filename,
 		FileSize:         header.Size,
 		UploadPath:       uploadPath,

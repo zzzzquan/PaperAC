@@ -20,7 +20,6 @@ npm-debug.log*
 .vscode/
 
 # Project specifics
-DEV_LOG.md
-PLAN.md
+start_dev.sh
 server/go.work
 server/go.work.sum

@@ -97,7 +97,7 @@ func (w *Worker) execute(ctx context.Context, task *store.Task) error {
 		processor := algo.NewProcessor()
 		processResult := processor.ProcessWithSegments(segments)
 		results = processResult.Sentences
-		log.Printf("AIGC目标比例: %.1f%%, 实际比例: %.1f%%", processResult.TargetRatio, processResult.ActualRatio)
+		log.Printf("分析完成，检测结果: %.1f%%", processResult.ActualRatio)
 	}
 
 	// 模拟耗时

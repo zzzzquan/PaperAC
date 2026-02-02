@@ -102,7 +102,7 @@ func SplitWithStructure(text string) []Segment {
 
 // shouldFilter 检查句子是否应该被过滤掉
 func shouldFilter(s string) bool {
-	if specialCharRe.MatchString(s) {
+	if hasSpecialCharacters(s) {
 		return true
 	}
 	if coverInfoRe.MatchString(s) {

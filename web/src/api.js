@@ -24,10 +24,9 @@ export async function clearSession() {
   }
 }
 
-export async function createTask(file, x) {
+export async function createTask(file) {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("x", x);
 
   return request("/api/tasks", {
     method: "POST",

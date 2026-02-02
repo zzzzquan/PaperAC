@@ -54,8 +54,7 @@ export default function App() {
     setLoading(true);
     setMessage("");
     try {
-      // Hardcode x=0.7 as per requirement to clean up UI input
-      await createTask(file, 0.7);
+      await createTask(file);
       setMessage("任务创建成功");
       setFile(null);
       // 重置文件输入

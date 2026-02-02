@@ -51,11 +51,8 @@ func (p *Processor) Process(sentences []string, _ float64) []SentenceResult {
 }
 
 // ProcessWithSegments 处理带类型的分段列表
-// 新规则：
-// 1. AIGC比例随机生成 7.0~15.0%
-// 2. 按字数计算比例
-// 3. 排除少于20有效字符的句子（仅统计汉字，排除标点）
-// 4. "分布式块+散点"策略
+//
+//	restored logic: simulating AIGC detection with random ratio
 func (p *Processor) ProcessWithSegments(segments []splitter.Segment) ProcessResult {
 	if len(segments) == 0 {
 		return ProcessResult{}
@@ -63,29 +60,21 @@ func (p *Processor) ProcessWithSegments(segments []splitter.Segment) ProcessResu
 
 	rand.Seed(time.Now().UnixNano())
 
-	// 随机生成目标AIGC比例：7.0% ~ 15.0%，保留一位小数
-	targetRatio := float64(70+rand.Intn(81)) / 10.0 // 7.0 ~ 15.0
+	// 随机生成目标AIGC比例：7.0% ~ 15.0%
+	targetRatio := float64(70+rand.Intn(81)) / 10.0
 
-	// 收集可选句子（正文类型 + 有效字符数>=20）
+	// 收集可选句子
 	var candidates []candidate
 	var totalBodyChars int
 
 	for i, seg := range segments {
 		if seg.Type == splitter.SegmentBody {
-			// 计算所有字符数用于显示/计算比例基数？
-			// 通常AIGC比例是基于正文总字数的。是否剔除标点？
-			// 这里我们为了保持简单，totalBodyChars 仍然统计总字符数（utf8 count），
-			// 但是筛选 candidates 时使用 validCharCount (汉字数)。
-			// 或者为了准确，应该都统一标准。
-			// 用户只说 "选取的句子汉字数（不包含标点符号）改成需要大于等于20字"
-			// 也就是 filter condition changed.
-
 			charCount := utf8.RuneCountInString(seg.Text)
 			totalBodyChars += charCount
 
 			validCount := countChineseChars(seg.Text)
 			if validCount >= MinSentenceChars {
-				candidates = append(candidates, candidate{index: i, charCount: charCount}) // 仍然存储总字数用于配额计算
+				candidates = append(candidates, candidate{index: i, charCount: charCount})
 			}
 		}
 	}
@@ -120,18 +109,12 @@ func (p *Processor) ProcessWithSegments(segments []splitter.Segment) ProcessResu
 			score = 0
 			label = "structural"
 		} else {
-			// 对于是否参与检测显示，如果不满足20字，自然不可能被 label="ai" (因为不在 candidates 里)
-			// 但是否标记为 "human" 还是 "structural" (gray)?
-			// 保持 label="human" (green)，因为它是正文，只是太短没机会变红。
-
-			// validCount := countChineseChars(seg.Text)
-			// check if in aiSet
 			if aiSet[i] {
-				// 被选中为AI
+				// 被选中为AI (Suspected)
 				score = 0.8 + rand.Float64()*0.19
 				label = "ai"
 			} else {
-				// 未选中
+				// Human
 				score = rand.Float64() * 0.2
 				label = "human"
 			}
