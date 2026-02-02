@@ -14,25 +14,38 @@ type ReportData struct {
 	Filename    string
 	GeneratedAt string
 	TotalRatio  string // e.g. "30.5%"
+	BodyCount   int    // 正文句子数
+	AICount     int    // AI句子数
 	Sentences   []algo.SentenceResult
 }
 
 // GenerateHTML 生成 HTML 报告
 func GenerateHTML(filename string, sentences []algo.SentenceResult, x float64) ([]byte, error) {
-	// 计算实际的 AIGC 占比
-	var aiCount int
+	// 计算实际的 AIGC 占比（只统计正文类型）
+	var aiCount, bodyCount int
 	for _, s := range sentences {
-		if s.Label == "ai" {
-			aiCount++
+		if s.Type == "body" {
+			bodyCount++
+			if s.Label == "ai" {
+				aiCount++
+			}
 		}
 	}
-	ratio := float64(aiCount) / float64(len(sentences))
-	ratioStr := fmt.Sprintf("%.1f%%", ratio*100)
+
+	var ratioStr string
+	if bodyCount > 0 {
+		ratio := float64(aiCount) / float64(bodyCount)
+		ratioStr = fmt.Sprintf("%.1f%%", ratio*100)
+	} else {
+		ratioStr = "0.0%"
+	}
 
 	data := ReportData{
 		Filename:    filename,
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
 		TotalRatio:  ratioStr,
+		BodyCount:   bodyCount,
+		AICount:     aiCount,
 		Sentences:   sentences,
 	}
 
@@ -49,7 +62,7 @@ func GenerateHTML(filename string, sentences []algo.SentenceResult, x float64) (
 	return buf.Bytes(), nil
 }
 
-// 简单的内嵌 HTML 模板
+// 简单的内嵌 HTML 模板 - 纯文本堆叠格式
 const htmlTemplate = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -97,6 +110,11 @@ const htmlTemplate = `
         .score-label {
             color: #6b7280;
         }
+        .score-detail {
+            color: #9ca3af;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
         .content {
             background: #fff;
             padding: 40px;
@@ -105,22 +123,9 @@ const htmlTemplate = `
             font-size: 16px;
             text-align: justify;
         }
-        .sentence {
-            padding: 2px 0;
-            cursor: default;
+        .ai {
+            background-color: rgba(254, 202, 202, 0.5);
         }
-        .sentence.ai {
-            background-color: rgba(254, 202, 202, 0.5); /* 浅红背景 */
-            text-decoration: underline wavy #ef4444 1px;
-        }
-        .sentence:hover {
-            background-color: rgba(0,0,0,0.05);
-        }
-        .tooltip {
-            position: relative;
-            display: inline;
-        }
-        /* 简单的 tooltip 实现，或者直接利用 title 属性 */
     </style>
 </head>
 <body>
@@ -135,15 +140,10 @@ const htmlTemplate = `
     <div class="score-card">
         <div class="score-value">{{.TotalRatio}}</div>
         <div class="score-label">疑似 AIGC 生成比例</div>
+        <div class="score-detail">检测句子数: {{.BodyCount}} | 疑似AI生成: {{.AICount}}</div>
     </div>
 
-    <div class="content">
-        {{range .Sentences}}
-            <span class="sentence {{.Label}}" title="AIGC 概率: {{printf "%.2f" .Score}}">
-                {{.Text}}
-            </span>
-        {{end}}
-    </div>
+    <div class="content">{{range .Sentences}}<span class="{{.Label}}">{{.Text}}</span>{{end}}</div>
 </body>
 </html>
 `

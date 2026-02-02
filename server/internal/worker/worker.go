@@ -80,7 +80,7 @@ func (w *Worker) execute(ctx context.Context, task *store.Task) error {
 		return err
 	}
 
-	var sentences []string
+	var segments []splitter.Segment
 	var results []algo.SentenceResult
 
 	// 提取PDF文本
@@ -89,13 +89,13 @@ func (w *Worker) execute(ctx context.Context, task *store.Task) error {
 		log.Printf("PDF解析失败: %v", err)
 	} else {
 		log.Printf("PDF解析成功，长度: %d", len(text))
-		// 分句
-		sentences = splitter.Split(text)
-		log.Printf("分句完成，共 %d 句", len(sentences))
+		// 分句（带结构识别）
+		segments = splitter.SplitWithStructure(text)
+		log.Printf("分句完成，共 %d 段", len(segments))
 
-		// 算法处理
+		// 算法处理（支持结构化分段）
 		processor := algo.NewProcessor()
-		results = processor.Process(sentences, task.X)
+		results = processor.ProcessWithSegments(segments, task.X)
 	}
 
 	// 模拟耗时
