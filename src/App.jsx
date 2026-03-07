@@ -118,8 +118,8 @@ export default function App() {
   return (
     <div className="page">
       <header className="header">
-        <div className="header-left">
-          <h1>PaperAC 文鉴</h1>
+        <div class="header-left">
+          <h1>paperAC</h1>
           <p>高情商论文AIGC检测工具</p>
         </div>
         <button className="link-btn" style={{ color: "#999" }} onClick={handleClearSession}>
