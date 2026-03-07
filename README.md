@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./readme_banner.svg" alt="PaperAC Logo Banner" width="600" />
+</div>
+
 # 🎓 文鉴 (PaperAC)
 
 > **High EQ, High Quality!** ✨

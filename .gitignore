@@ -1,25 +1,30 @@
-# Environment Variables
-.env
-
-# MacOS
-.DS_Store
-
-# Go
-server/api
-
-
-# Node/Frontend
-node_modules/
-web/node_modules/
-web/dist/
-web/.env.local
+# Logs
+logs
+*.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Editor directories
-.idea/
-.vscode/
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # Project specifics
+.env
 start_dev.sh
-server/go.work
-server/go.work.sum
+server/
+web/

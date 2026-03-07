@@ -1,0 +1,6 @@
+name = "paperac"
+compatibility_date = "2024-03-01"
+pages_build_output_dir = "dist"
+
+[env.production]
+# Add any production-specific environment variables here if needed
