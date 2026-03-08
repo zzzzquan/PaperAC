@@ -34,7 +34,6 @@ npm run dev
 ### 📦 构建部署
 ```bash
 npm run build
-# 生成的 dist/ 目录可直接部署到任何静态托管服务
 ```
 
 ## ⚠️ 免责声明
