@@ -5,7 +5,7 @@
 <h1 align="center">PaperAC</h1>
 
 <p align="center">
-  <b>“高情商”的 AIGC 检测报告生成工具</b>
+  <b>“高情商” AIGC 检测报告生成工具</b>
 </p>
 
 ## 项目介绍
